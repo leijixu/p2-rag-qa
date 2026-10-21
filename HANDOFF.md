@@ -45,15 +45,22 @@
 > 注意：这个 base_url 的域名不是 `aliyuncs.com`，是用户从控制台拿到的地址；无法联网核实域名归属，
 > 但接口行为符合 OpenAI 兼容规范，可以正常使用。简历上写"接入阿里云百炼 embedding 接口"是合理的。
 
-### 待定 1：要不要用框架
+### 待定 1：要不要用框架（10/21 已联网核实）
 
-主流方案：LangChain、LlamaIndex（库），RAGFlow、Dify（低代码产品）。
+GitHub 仓库官方描述与星数（2026-10-21）：
 
-建议：**先手写最小链路，再用 LlamaIndex 复刻一遍做对照**。理由：面试问的是"检索到底怎么工作"，
-只答得出框架名会被追到哑口。手写版大约 60~80 行，值得。
+| 项目 | 星数 | 官方定位 |
+| --- | --- | --- |
+| LangChain | 148k | The agent engineering platform |
+| LlamaIndex | 52.6k | The document processing platform for AI |
+| RAGFlow | 92.6k | 开源 RAG 引擎，融合 RAG 与 Agent |
+| Dify | 159k | Agentic workflows + RAG pipelines，可自托管 |
 
-（这些框架的当前状态没有联网核实，真正选型时以官网为准。）
+**结论修正**：LangChain 现在把自己定位成 **Agent 工程平台**，不再是"RAG 库"；
+LlamaIndex 才是明确的文档处理 / RAG 方向。所以第二步的对照实验用 **LlamaIndex**。
 
+建议不变：先手写最小链路（60~80 行），再用 LlamaIndex 复刻一遍做对照。
+理由：面试问的是"检索到底怎么工作"，只答得出框架名会被追到哑口。
 ### 待定 2：语料用什么
 
 建议先用自己的项目 README + 几篇技术文档，来源可解释。
