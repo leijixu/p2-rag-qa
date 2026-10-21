@@ -27,22 +27,37 @@
 
 可演示的知识库问答，带引用溯源。最终要能公网访问，并写进简历。
 
-## 三个待定决策（先定，别直接开写）
+## 选型状态
 
-**1. embedding 用哪家。** DeepSeek 只有 chat 接口，没有 embedding。候选：
+### 已确定：embedding（10/21 实测通过）
 
-- 阿里云百炼 `text-embedding-v3`：国内、有免费额度、中文强 —— 推荐
-- 硅基流动：注册简单，有免费 embedding
-- 本地 `sentence-transformers`：免费但要下模型，2C2G 的服务器跑不动
+| 项 | 值 |
+| --- | --- |
+| 平台 | 阿里云百炼（千问） |
+| base_url | `https://maas.qianwenaiapi.com/compatible-mode/v1` |
+| 模型 | `text-embedding-v3` |
+| 向量维度 | **1024** |
+| 协议 | OpenAI 兼容，用 `openai` SDK 的 `client.embeddings.create()` 直接调 |
 
-这个选择直接决定切块参数和向量维度，定完再写。
+验证方式：仓库里的 `probe_embedding.py` 跑一次即可（key 从环境变量 `DASHSCOPE_API_KEY` 读）。
+实测返回 1024 维向量、usage 正常，说明模型名和地址都对。
 
-**2. 要不要用框架。** 主流方案：LangChain、LlamaIndex（库），RAGFlow、Dify（低代码产品）。
+> 注意：这个 base_url 的域名不是 `aliyuncs.com`，是用户从控制台拿到的地址；无法联网核实域名归属，
+> 但接口行为符合 OpenAI 兼容规范，可以正常使用。简历上写"接入阿里云百炼 embedding 接口"是合理的。
+
+### 待定 1：要不要用框架
+
+主流方案：LangChain、LlamaIndex（库），RAGFlow、Dify（低代码产品）。
+
 建议：**先手写最小链路，再用 LlamaIndex 复刻一遍做对照**。理由：面试问的是"检索到底怎么工作"，
 只答得出框架名会被追到哑口。手写版大约 60~80 行，值得。
 
-**3. 语料用什么。** 建议先用自己的项目 README + 几篇技术文档，来源可解释。
+（这些框架的当前状态没有联网核实，真正选型时以官网为准。）
 
+### 待定 2：语料用什么
+
+建议先用自己的项目 README + 几篇技术文档，来源可解释。
+文档放 `data/`，已加入 .gitignore。
 ## 第一步（等决策 1 定了再做）
 
 用 numpy 手写，不引入向量库：
