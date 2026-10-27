@@ -21,6 +21,7 @@ import os
 import re
 import sys
 import math
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -37,6 +38,8 @@ CHAT_MODEL = "deepseek-chat"
 ROOT_DIR = Path(__file__).resolve().parent
 DEFAULT_DATA_DIR = ROOT_DIR / "data"
 SAMPLES_DIR = ROOT_DIR / "samples"
+CACHE_DIR = ROOT_DIR / ".cache"
+CACHE_FILE = CACHE_DIR / "embeddings.npz"
 
 
 def _pick_data_dir() -> Path:
@@ -369,6 +372,41 @@ def embed_texts(client: OpenAI, texts: list[str]) -> np.ndarray:
     return matrix
 
 
+def _cache_key(texts: list[str]) -> str:
+    """模型 + base_url + 全部块文本 的哈希。任何一项变了，缓存失效。"""
+    digest = hashlib.sha256()
+    digest.update(EMBED_MODEL.encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(EMBED_BASE_URL.encode("utf-8"))
+    for text in texts:
+        digest.update(b"\0")
+        digest.update(text.encode("utf-8"))
+    return digest.hexdigest()
+
+
+def embed_documents(
+    client: OpenAI, chunks: list[Chunk], cache_file: Path = CACHE_FILE
+) -> np.ndarray:
+    """文档块向量带缓存；块文本或模型不变时直接读 .cache/embeddings.npz。"""
+    texts = [embedding_text(chunk) for chunk in chunks]
+    key = _cache_key(texts)
+
+    if cache_file.exists():
+        try:
+            data = np.load(cache_file, allow_pickle=False)
+            if str(data["key"]) == key:
+                print("embedding 缓存命中")
+                return data["matrix"]
+        except Exception as exc:
+            print("缓存读取失败，重新计算:", exc)
+
+    print("embedding 缓存未命中，重新计算")
+    matrix = embed_texts(client, texts)
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(cache_file, matrix=matrix, key=np.array(key))
+    return matrix
+
+
 def cosine_top_k(
     query_vec: np.ndarray, matrix: np.ndarray, k: int = TOP_K
 ) -> list[tuple[int, float]]:
@@ -557,7 +595,7 @@ def cmd_hybrid(question: str) -> None:
     for name, text in load_documents(DATA_DIR):
         chunks.extend(split_into_chunks(name, text))
 
-    matrix = embed_texts(client, [embedding_text(c) for c in chunks])
+    matrix = embed_documents(client, chunks)
     query_vec = embed_texts(client, [question])[0]
     hits = hybrid_top_k(query_vec, matrix, question, chunks, k=10)
 
@@ -578,7 +616,7 @@ def cmd_prompt(question: str) -> None:
     for name, text in documents:
         chunks.extend(split_into_chunks(name, text))
 
-    matrix = embed_texts(client, [embedding_text(c) for c in chunks])
+    matrix = embed_documents(client, chunks)
     query_vec = embed_texts(client, [question])[0]
     hits = hybrid_top_k(query_vec, matrix, question, chunks)
     selected = [chunks[i] for i, _ in hits]
@@ -605,7 +643,7 @@ def cmd_ask(question: str) -> None:
     if not chunks:
         sys.exit("没有切出任何块")
 
-    matrix = embed_texts(embed_client, [embedding_text(c) for c in chunks])
+    matrix = embed_documents(embed_client, chunks)
     query_vec = embed_texts(embed_client, [question])[0]
     hits = hybrid_top_k(query_vec, matrix, question, chunks)
 

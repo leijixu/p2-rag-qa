@@ -23,8 +23,8 @@ from rag import (
     EMBED_BASE_URL,
     OpenAI,
     build_prompt,
+    embed_documents,
     embed_texts,
-    embedding_text,
     generate,
     hybrid_top_k,
     load_documents,
@@ -80,7 +80,7 @@ def main() -> None:
         chunks.extend(split_into_chunks(name, text))
 
     print(f"共 {len(chunks)} 个块，先算一次向量矩阵……")
-    matrix = embed_texts(embed_client, [embedding_text(c) for c in chunks])
+    matrix = embed_documents(embed_client, chunks)
 
     questions = load_questions(EVAL_PATH)
     print(f"共 {len(questions)} 道题")
