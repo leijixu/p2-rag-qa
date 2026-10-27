@@ -5,3 +5,5 @@ __pycache__/
 data/
 *.db
 .idea/
+practice_syntax.py
+EVAL_RUN_*.md
