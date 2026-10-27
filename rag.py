@@ -34,7 +34,19 @@ EMBED_BATCH = 10  # 百炼批量上限若低于 10，按报错再调小
 CHAT_BASE_URL = "https://api.deepseek.com"
 CHAT_MODEL = "deepseek-chat"
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
+ROOT_DIR = Path(__file__).resolve().parent
+DEFAULT_DATA_DIR = ROOT_DIR / "data"
+SAMPLES_DIR = ROOT_DIR / "samples"
+
+
+def _pick_data_dir() -> Path:
+    """data/ 里有文件就用 data/，否则退回仓库自带的 samples/。"""
+    if DEFAULT_DATA_DIR.is_dir() and any(DEFAULT_DATA_DIR.glob("*")):
+        return DEFAULT_DATA_DIR
+    return SAMPLES_DIR
+
+
+DATA_DIR = _pick_data_dir()
 MAX_CHARS = 600
 TOP_K = 3
 SUPPORTED_SUFFIXES = {".md", ".py"}
