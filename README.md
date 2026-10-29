@@ -63,6 +63,17 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 打开 http://127.0.0.1:8000 。启动时加载一次文档块和向量矩阵，之后每次提问只 embed query。页面会显示回答和检索到的材料（出处、标题、分数）。
 
+防护：`/ask` 按 IP 限流（60 秒 10 次），问题最长 500 字；`/health` 和 `/static` 不限流。
+
+## Docker 部署
+
+```powershell
+docker build -t p2-rag-qa .
+docker run -d --name p2-rag-qa --env-file .env -p 8001:8000 --restart unless-stopped p2-rag-qa
+```
+
+密钥通过 `--env-file` 运行时注入，不进镜像层。容器内只开 1 个 uvicorn worker，因为索引在内存里。公网访问需要安全组放行 8001。
+
 ## 数据
 
 - 仓库自带 `samples/`：P0/P1 的 README 和源码，clone 下来即可直接跑

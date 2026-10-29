@@ -9,18 +9,26 @@
 from __future__ import annotations
 
 import os
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 import rag
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "static"
+LIMIT = 10
+WINDOW = 60
+MAX_QUESTION_CHARS = 500
+GUARDED_PREFIX = "/ask"
+
+_hits: dict[str, deque[float]] = defaultdict(deque)
 
 
 class AskRequest(BaseModel):
@@ -62,6 +70,36 @@ app = FastAPI(title="P2 RAG Demo", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
+@app.middleware("http")
+async def limit_and_log(request: Request, call_next):
+    started = time.perf_counter()
+    ip = request.client.host if request.client else "unknown"
+
+    if request.url.path.startswith(GUARDED_PREFIX):
+        now = time.monotonic()
+        hits = _hits[ip]
+        while hits and now - hits[0] > WINDOW:
+            hits.popleft()
+        if len(hits) >= LIMIT:
+            wait = int(WINDOW - (now - hits[0])) + 1
+            response = JSONResponse(
+                status_code=429,
+                content={"detail": f"请求过于频繁，请 {wait} 秒后再试"},
+                headers={"Retry-After": str(wait)},
+            )
+            print(f"{ip} {request.method} {request.url.path} 429 {time.perf_counter() - started:.2f}s", flush=True)
+            return response
+        hits.append(now)
+
+    response = await call_next(request)
+    print(
+        f"{ip} {request.method} {request.url.path} {response.status_code} "
+        f"{time.perf_counter() - started:.2f}s",
+        flush=True,
+    )
+    return response
+
+
 @app.get("/")
 def home() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
@@ -80,6 +118,11 @@ def ask(req: AskRequest) -> dict[str, Any]:
     question = req.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="问题不能为空")
+    if len(question) > MAX_QUESTION_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"问题太长，最多 {MAX_QUESTION_CHARS} 字",
+        )
 
     try:
         query_vec = rag.embed_texts(index.embed_client, [question])[0]

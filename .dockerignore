@@ -1,0 +1,10 @@
+.git
+.venv
+__pycache__
+*.pyc
+.cache
+.env
+data
+EVAL_RUN*.md
+practice_syntax.py
+*.log
