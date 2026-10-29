@@ -55,6 +55,14 @@ python run_eval.py                           # 跑 EVAL.md 里的全部题目，
 
 第一次运行会把文档块 embed 一遍，写到 `.cache/embeddings.npz`；之后只要文本和模型没变，就直接读缓存，只 embed query。改了切块参数或文档内容，哈希变化，缓存自动失效重算。
 
+## Web 演示
+
+```powershell
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+打开 http://127.0.0.1:8000 。启动时加载一次文档块和向量矩阵，之后每次提问只 embed query。页面会显示回答和检索到的材料（出处、标题、分数）。
+
 ## 数据
 
 - 仓库自带 `samples/`：P0/P1 的 README 和源码，clone 下来即可直接跑
@@ -86,6 +94,8 @@ python run_eval.py                           # 跑 EVAL.md 里的全部题目，
 | 文件 | 作用 |
 |---|---|
 | `rag.py` | 主链路：切块、embedding、混合检索、prompt、generate |
+| `app.py` | FastAPI 后端：启动加载索引，提供 `/ask`、`/health` |
+| `static/index.html` | 极简 Web 页面：提问、显示回答和出处 |
 | `run_eval.py` | 自动跑评测集，结果写 `EVAL_RUN.md` |
 | `diag_rank.py` | 诊断单个问题的检索排名 |
 | `EVAL.md` | 41 题评测集 |

@@ -8,3 +8,4 @@ data/
 practice_syntax.py
 EVAL_RUN_*.md
 .cache/
+*.log

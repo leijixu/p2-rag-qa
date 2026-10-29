@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>P2 RAG 知识库问答</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --border: #e5e7eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    .sub { color: var(--muted); margin-bottom: 24px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+    }
+    textarea {
+      width: 100%;
+      min-height: 96px;
+      resize: vertical;
+      padding: 12px;
+      font: inherit;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+    }
+    textarea:focus { border-color: var(--accent); }
+    .row { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font: inherit;
+      cursor: pointer;
+      background: var(--accent);
+      color: white;
+    }
+    button:disabled { opacity: .55; cursor: wait; }
+    button.ghost { background: #eef2ff; color: #3730a3; }
+    .examples { color: var(--muted); font-size: 14px; margin-top: 12px; }
+    .answer {
+      white-space: pre-wrap;
+      line-height: 1.7;
+      margin: 0;
+    }
+    .status { color: var(--muted); font-size: 14px; margin-top: 8px; }
+    .error { color: #b91c1c; }
+    ul.citations { list-style: none; padding: 0; margin: 0; }
+    ul.citations li {
+      border-top: 1px solid var(--border);
+      padding: 10px 0;
+      font-size: 14px;
+    }
+    ul.citations li:first-child { border-top: 0; }
+    code {
+      background: #f3f4f6;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-family: ui-monospace, Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>P2 RAG 知识库问答</h1>
+  <div class="sub">基于本地文档的检索增强问答，回答只依据材料，并标注出处。</div>
+
+  <div class="card">
+    <textarea id="question" placeholder="问一个文档里有答案的问题，例如：P1 的限流阈值是多少？"></textarea>
+    <div class="row">
+      <button id="ask">提问</button>
+      <button class="ghost" data-q="P1 的限流阈值是多少？">限流阈值</button>
+      <button class="ghost" data-q="P0 的 CLI 怎么退出？">P0 退出</button>
+      <button class="ghost" data-q="P1 用的消息队列是什么？">不可答示例</button>
+    </div>
+    <div class="examples">当前语料：5 个文件、43 个块；检索方式：向量 + BM25 + RRF。</div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0;font-size:18px;">回答</h2>
+    <p class="answer" id="answer">还没有提问。</p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0;font-size:18px;">检索到的材料</h2>
+    <ul class="citations" id="citations"><li>还没有检索结果。</li></ul>
+  </div>
+</main>
+
+<script>
+  const questionEl = document.getElementById("question");
+  const askBtn = document.getElementById("ask");
+  const statusEl = document.getElementById("status");
+  const answerEl = document.getElementById("answer");
+  const citationsEl = document.getElementById("citations");
+
+  async function ask() {
+    const question = questionEl.value.trim();
+    if (!question) {
+      statusEl.textContent = "先输入一个问题。";
+      statusEl.className = "status error";
+      return;
+    }
+
+    askBtn.disabled = true;
+    statusEl.textContent = "检索中，请稍等……";
+    statusEl.className = "status";
+    answerEl.textContent = "……";
+    citationsEl.innerHTML = "";
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 90000);
+
+    try {
+      const resp = await fetch("/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+        signal: controller.signal,
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || "请求失败");
+
+      answerEl.textContent = data.answer || "（空回答）";
+      statusEl.textContent = "完成。";
+
+      if (!data.citations || data.citations.length === 0) {
+        citationsEl.innerHTML = "<li>没有检索结果。</li>";
+      } else {
+        for (const item of data.citations) {
+          const li = document.createElement("li");
+          const label = document.createElement("code");
+          label.textContent = item.label;
+          li.appendChild(label);
+          li.appendChild(document.createTextNode(`  ${item.heading}  ·  score ${item.score}`));
+          citationsEl.appendChild(li);
+        }
+      }
+    } catch (err) {
+      answerEl.textContent = "出错了。";
+      statusEl.textContent = err.name === "AbortError" ? "请求超时（90 秒）。" : String(err.message || err);
+      statusEl.className = "status error";
+    } finally {
+      clearTimeout(timer);
+      askBtn.disabled = false;
+    }
+  }
+
+  askBtn.addEventListener("click", ask);
+  questionEl.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") ask();
+  });
+  document.querySelectorAll("button[data-q]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      questionEl.value = btn.dataset.q;
+      ask();
+    });
+  });
+</script>
+</body>
+</html>
